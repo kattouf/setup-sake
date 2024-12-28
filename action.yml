@@ -1,0 +1,45 @@
+name: 'Sake Action'
+description: 'A GitHub Action to run Sake tasks'
+inputs:
+  sake-version:
+    description: 'Version of sake to install'
+    required: false
+    default: 'latest'
+  sake-config-path:
+    description: 'Path to the sake config file'
+    required: false
+  sake-app-path:
+    description: 'Path to the SakeApp'
+    required: false
+  sake-case-converting-strategy:
+    description: 'Case converting strategy'
+    required: false
+  sake-command:
+    description: 'Sake command to run'
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Install Sake
+      uses: sigoden/install-binary@v1
+      with:
+        repo: kattouf/Sake
+        tag: ${{ inputs.sake-version }}
+        name: sake
+        cache: true
+    - name: Build SakeApp
+      shell: bash
+      env:
+        SAKE_CONFIG_PATH: ${{ inputs.sake-config-path }}
+        SAKE_APP_PATH: ${{ inputs.sake-app-path }}
+        SAKE_CASE_CONVERTING_STRATEGY: ${{ inputs.sake-case-converting-strategy }}
+      run: |
+        sake build
+    - name: Run Sake command
+      shell: bash
+      env:
+        SAKE_CONFIG_PATH: ${{ inputs.sake-config-path }}
+        SAKE_APP_PATH: ${{ inputs.sake-app-path }}
+        SAKE_CASE_CONVERTING_STRATEGY: ${{ inputs.sake-case-converting-strategy }}
+      run: |
+        sake run ${{ inputs.sake-command }}
