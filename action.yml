@@ -1,45 +1,102 @@
-name: 'Sake Action'
-description: 'A GitHub Action to run Sake tasks'
+name: 'Setup Sake'
+description: 'A GitHub Action to setup and prebuild Sake'
 inputs:
   sake-version:
-    description: 'Version of sake to install'
+    description: 'Version of Sake to install (0.2.4 or later)'
     required: false
     default: 'latest'
   sake-config-path:
     description: 'Path to the sake config file'
     required: false
   sake-app-path:
-    description: 'Path to the SakeApp'
+    description: 'Path to the SakeApp. Default is ./SakeApp. Improtant for SakeApp build caching'
     required: false
-  sake-case-converting-strategy:
-    description: 'Case converting strategy'
-    required: false
-  sake-command:
-    description: 'Sake command to run'
-    required: true
+    default: './SakeApp'
+outputs:
+  sake_app_prebuilt_binary_path:
+    description: 'The path to the prebuilt SakeApp binary'
+    value: ${{ steps.determine-path.outputs.sake_app_prebuilt_binary_path }}
 runs:
   using: composite
   steps:
+    - name: Save installed swift version
+      id: save-swift-version
+      shell: bash
+      run: |
+        if ! command -v swift &> /dev/null; then
+          echo "Swift is not installed"
+          exit 1
+        fi
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+          md5="md5"
+        else
+          md5="md5sum"
+        fi
+        echo "swift-version-hash=$(swift --version 2>/dev/null | $md5)" >> $GITHUB_OUTPUT
+
+    - name: Validate Tools Versions
+      shell: bash
+      run: |
+        validate_version() {
+          local input_version=$1
+          local min_version=$2
+          if [ "$(printf '%s\n' "$min_version" "$input_version" | sort -V | head -n1)" != "$min_version" ]; then
+            echo "Input version $input_version is less than the min version $min_version"
+            exit 1
+          fi
+        }
+
+        # Validate sake-version
+        if [ "${{ inputs.sake-version }}" != "latest" ]; then
+          validate_version "${{ inputs.sake-version }}" "${{ env.SAKE_MIN_VERSION }}"
+        fi
+      env:
+        SAKE_MIN_VERSION: 0.2.4
+
+    - name: Install UBI
+      shell: bash
+      run: |
+        export TAG=v${{ env.UBI_VERSION }}
+        export TARGET=/usr/local/bin
+        curl --silent --location \
+            https://raw.githubusercontent.com/houseabsolute/ubi/master/bootstrap/bootstrap-ubi.sh |
+            sh
+      env:
+        UBI_VERSION: 0.3.0
+
     - name: Install Sake
-      uses: sigoden/install-binary@v1
+      shell: bash
+      run: |
+        if [ "${{ inputs.sake-version }}" != "latest" ]; then
+          /usr/local/bin/ubi --project kattouf/Sake --exe sake --tag ${{ inputs.sake-version }} --in /usr/local/bin
+        else
+          /usr/local/bin/ubi --project kattouf/Sake --exe sake --in /usr/local/bin
+        fi
+
+    - name: Determine SakeApp Binary Path
+      id: determine-path
+      shell: bash
+      run: echo "sake_app_prebuilt_binary_path=$(sake build --show-bin-path)" >> $GITHUB_OUTPUT
+
+    - name: Cache SakeApp Binary
+      id: sakeapp-cache
+      uses: actions/cache@v4
       with:
-        repo: kattouf/Sake
-        tag: ${{ inputs.sake-version }}
-        name: sake
-        cache: true
-    - name: Build SakeApp
+        path: ${{ steps.determine-path.outputs.sake_app_prebuilt_binary_path }}
+        key: ${{ runner.os }}-swift-${{ steps.save-swift-version.outputs.swift-version-hash }}-sakeapp-${{ hashFiles(format('{0}/{1}', inputs.sake-app-path, '**')) }}
+
+    - name: Build SakeApp if Not Cached
+      if: steps.sakeapp-cache.outputs.cache-hit != 'true'
       shell: bash
-      env:
-        SAKE_CONFIG_PATH: ${{ inputs.sake-config-path }}
-        SAKE_APP_PATH: ${{ inputs.sake-app-path }}
-        SAKE_CASE_CONVERTING_STRATEGY: ${{ inputs.sake-case-converting-strategy }}
       run: |
+        if [ -n "${{ inputs.sake-config-path }}" ]; then
+          export SAKE_CONFIG_PATH=${{ inputs.sake-config-path }}
+        fi
+        if [ -n "${{ inputs.sake-app-path }}" ]; then
+          export SAKE_APP_PATH=${{ inputs.sake-app-path }}
+        fi
         sake build
-    - name: Run Sake command
+
+    - name: Expose SakeApp Binary Path to Environment
       shell: bash
-      env:
-        SAKE_CONFIG_PATH: ${{ inputs.sake-config-path }}
-        SAKE_APP_PATH: ${{ inputs.sake-app-path }}
-        SAKE_CASE_CONVERTING_STRATEGY: ${{ inputs.sake-case-converting-strategy }}
-      run: |
-        sake run ${{ inputs.sake-command }}
+      run: echo "SAKE_APP_PREBUILT_BINARY_PATH=${{ steps.determine-path.outputs.sake_app_prebuilt_binary_path }}" >> $GITHUB_ENV
