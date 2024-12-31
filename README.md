@@ -1,36 +1,15 @@
 # Setup Sake GitHub Action
 
-This GitHub Action sets up and prebuilds [Sake](https://github.com/kattouf/Sake) commands, a tool for managing Swift projects. It ensures that the specified version of Sake is installed and caches the prebuilt SakeApp binary for faster builds.
+[![GitHub release](https://img.shields.io/github/v/release/kattouf/setup-sake)](https://github.com/kattouf/setup-sake/releases)  
 
-## Inputs
+The **Setup Sake** GitHub Action installs and configures [Sake](https://github.com/kattouf/Sake) for Swift projects, optimizing build times with caching.
 
-### `sake-version`
+## Quick Start
 
-- **Description**: The version of Sake to install (0.2.4 or later).
-- **Required**: No
-- **Default**: `latest`
-
-### `sake-config-path`
-
-- **Description**: Path to the Sake config file.
-- **Required**: No
-
-### `sake-app-path`
-
-- **Description**: Path to the SakeApp. Important for SakeApp build caching.
-- **Required**: No
-- **Default**: `./SakeApp`
-
-## Outputs
-
-### `sake_app_prebuilt_binary_path`
-
-- **Description**: The path to the prebuilt SakeApp binary.
-
-## Example Usage
+Add this to your GitHub Actions workflow:
 
 ```yaml
-name: Run sake command
+name: CI
 
 on: [push, pull_request]
 
@@ -39,27 +18,45 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Swift
-        uses: actions/setup-swift@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-swift@v2
         with:
-          swift-version: '6.0'
-
-      - name: Setup Sake
-        uses: kattouf/setup-sake@1
-
-      - name: Use SakeApp
-        run: |
-          sake my_sake_command
+          swift-version: '5.10'
+      - uses: kattouf/setup-sake@v1
+        with:
+          sake-version: 'latest' # or specify a version
+          sake-config-path: './Sakefile' # Optional
+          sake-app-path: './SakeApp' # Optional
+      - run: sake my_sake_command
 ```
 
-## Notes
+## Inputs
 
-- Ensure that Swift is installed on the runner.
-- The action will validate the provided Sake version to ensure it meets the minimum required version (0.2.4).
-- The action uses caching to speed up subsequent builds by storing the prebuilt SakeApp binary.
-- If the SakeApp binary is not cached, it will be built during the workflow run.
+- **`sake-version`**: *(Optional)* Version of Sake to install. Default is `latest`.
+- **`sake-config-path`**: *(Optional)* Path to Sake config file.
+- **`sake-app-path`**: *(Optional)* Path to SakeApp for caching.
 
-This action simplifies the setup and usage of Sake in your GitHub workflows, ensuring consistent and efficient builds.
+## Outputs
+
+- **`sake_app_prebuilt_binary_path`**: Path to the cached SakeApp binary.
+
+## Caching
+
+The SakeApp binary is cached based on the hash of the SakeApp files. This ensures that changes to the SakeApp files will trigger a rebuild, while unchanged files will benefit from the cached binary, speeding up the build process.
+
+## Swift Requirements
+
+- **Swift Version**: Ensure that Swift is installed on the runner. This action is compatible with Swift 5.10 and above. Use the `actions/setup-swift` action to manage Swift versions in your workflow.
+
+## Benefits
+
+- **Faster Builds**: Caches SakeApp binary based on file hash.
+- **Version Control**: Ensures consistent Sake version.
+
+## License
+
+MIT License. See [LICENSE](LICENSE) for details.
+
+## Support
+
+For issues, visit the [GitHub repository](https://github.com/kattouf/setup-sake/issues).
