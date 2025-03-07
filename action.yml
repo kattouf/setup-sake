@@ -78,9 +78,9 @@ runs:
       shell: bash
       run: echo "sake_app_prebuilt_binary_path=$(sake build --show-bin-path)" >> $GITHUB_OUTPUT
 
-    - name: Cache SakeApp Binary
+    - name: Restore SakeApp Cached Binary
       id: sakeapp-cache
-      uses: actions/cache@v4
+      uses: actions/cache/restore@v4
       with:
         path: ${{ steps.determine-path.outputs.sake_app_prebuilt_binary_path }}
         key: ${{ runner.os }}-swift-${{ steps.save-swift-version.outputs.swift-version-hash }}-sakeapp-${{ hashFiles(format('{0}/{1}', inputs.sake-app-path, '**')) }}
@@ -96,6 +96,14 @@ runs:
           export SAKE_APP_PATH=${{ inputs.sake-app-path }}
         fi
         sake build
+
+    - name: Cache SakeApp Binary if Not Cached
+      if: steps.sakeapp-cache.outputs.cache-hit != 'true'
+      id: sakeapp-cache
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ steps.determine-path.outputs.sake_app_prebuilt_binary_path }}
+        key: ${{ runner.os }}-swift-${{ steps.save-swift-version.outputs.swift-version-hash }}-sakeapp-${{ hashFiles(format('{0}/{1}', inputs.sake-app-path, '**')) }}
 
     - name: Expose SakeApp Binary Path to Environment
       shell: bash
